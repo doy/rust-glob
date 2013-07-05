@@ -1,23 +1,23 @@
 #[link(name = "glob",
-       vers = "0.0.1",
+       vers = "0.0.2",
        uuid = "9cb8312d-058c-482f-a0b0-27c48773c74b",
        url  = "https://github.com/doy/rust-glob")];
 
 #[crate_type = "lib"];
 
-use core::libc::{c_char,c_int,c_void,size_t};
-use core::path::Path;
-use core::unstable::finally::Finally;
+use std::{ str, ptr, vec };
+use std::libc::types::os::common::posix01::glob_t;
+use std::libc::funcs::posix01::glob;
+use std::path::Path;
+use std::unstable::finally::Finally;
 
 pub fn glob (pattern: &str) -> ~[Path] {
-    let g = glob_t {
+    let mut g = glob_t {
         gl_pathc: 0, gl_pathv: ptr::null(), gl_offs: 0,
-        gl_closedir: ptr::null(), gl_readdir: ptr::null(),
-        gl_opendir: ptr::null(),
-        gl_lstat: ptr::null(), gl_stat: ptr::null(),
+        __unused1: ptr::null(), __unused2: ptr::null(), __unused3: ptr::null(), __unused4: ptr::null(), __unused5: ptr::null()
     };
     do str::as_c_str(pattern) |c_pattern| {
-        unsafe { c::glob(c_pattern, 0, ptr::null(), &g) }
+        unsafe { glob::glob(c_pattern, 0, ptr::null(), &mut g) }
     };
     do(|| {
         let paths = unsafe {
@@ -27,27 +27,8 @@ pub fn glob (pattern: &str) -> ~[Path] {
             Path(unsafe { str::raw::from_c_str(c_str) })
         }
     }).finally {
-        unsafe { c::globfree(&g) };
+        unsafe { glob::globfree(&mut g) };
     }
-}
-
-struct glob_t {
-    gl_pathc: size_t,
-    gl_pathv: **c_char,
-    gl_offs:  size_t,
-
-    // these are nonstandard
-    gl_closedir: *c_void,
-    gl_readdir:  *c_void,
-    gl_opendir:  *c_void,
-    gl_lstat:    *c_void,
-    gl_stat:     *c_void,
-}
-
-extern mod c {
-    fn glob(pattern: *c_char, flags: c_int,
-            errfunc: *c_void, pglob: *glob_t) -> c_int;
-    fn globfree(pglob: *glob_t);
 }
 
 #[test]
